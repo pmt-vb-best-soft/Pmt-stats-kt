@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stats">
+<title>Stats</title>
+<style>
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #13131a;
+    --card:     #1a1a24;
+    --border:   #2a2a3a;
+    --accent:   #6c5ce7;
+    --accent2:  #00cec9;
+    --green:    #00b894;
+    --red:      #ff6b6b;
+    --yellow:   #fdcb6e;
+    --text:     #f0f0f8;
+    --muted:    #6b6b8a;
+    --label:    #9898b8;
+    --mono:     'SF Mono', 'Fira Code', monospace;
+    --sans:     -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    overscroll-behavior: none;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    padding: 16px 20px 12px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .logo {
+    font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .logo-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .5; transform: scale(1.4); }
+  }
+
+  .live-badge {
+    font-size: 10px; font-weight: 600; letter-spacing: 1px;
+    color: var(--green); background: rgba(0,184,148,.12);
+    border: 1px solid rgba(0,184,148,.3);
+    padding: 3px 8px; border-radius: 20px;
+  }
+
+  /* ── PERIOD TABS ── */
+  .period-wrap {
+    padding: 14px 20px 0;
+    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  }
+  .period-wrap::-webkit-scrollbar { display: none; }
+
+  .period-btn {
+    flex-shrink: 0;
+    padding: 6px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 500;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--muted);
+    cursor: pointer; transition: all .2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .period-btn.active {
+    background: var(--accent); border-color: var(--accent);
+    color: #fff; box-shadow: 0 0 16px rgba(108,92,231,.4);
+  }
+
+  /* ── MAIN CONTENT ── */
+  .content { padding: 16px 16px 100px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── KPI ROW ── */
+  .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .kpi-card.c1::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .kpi-card.c2::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .kpi-card.c3::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .kpi-card.c4::before { background: linear-gradient(90deg, var(--yellow), transparent); }
+
+  .kpi-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .8px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-size: 26px; font-weight: 700; letter-spacing: -1px;
+    font-family: var(--mono);
+  }
+  .kpi-delta {
+    font-size: 12px; font-weight: 500; margin-top: 4px;
+  }
+  .kpi-delta.up   { color: var(--green); }
+  .kpi-delta.down { color: var(--red); }
+
+  /* ── SPARKLINE ── */
+  .chart-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px;
+  }
+  .chart-title {
+    font-size: 13px; font-weight: 600; color: var(--label); margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: .6px;
+  }
+  .spark-wrap { position: relative; height: 80px; }
+  canvas.spark { width: 100% !important; height: 80px !important; }
+
+  /* ── CAMPAIGNS ── */
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 4px;
+  }
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--label);
+    text-transform: uppercase; letter-spacing: .6px;
+  }
+  .section-link { font-size: 12px; color: var(--accent); }
+
+  .camp-list { display: flex; flex-direction: column; gap: 8px; }
+  .camp-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+    transition: background .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .camp-card:active { background: #20202e; }
+
+  .camp-icon {
+    width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .camp-info { flex: 1; min-width: 0; }
+  .camp-name {
+    font-size: 14px; font-weight: 600; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+  }
+  .camp-meta { font-size: 12px; color: var(--muted); }
+
+  .camp-stats { text-align: right; flex-shrink: 0; }
+  .camp-epc {
+    font-family: var(--mono); font-size: 15px; font-weight: 700;
+    color: var(--green);
+  }
+  .camp-cr { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.paused { background: var(--yellow); }
+
+  /* ── ALERTS ── */
+  .alert-card {
+    background: rgba(255,107,107,.08); border: 1px solid rgba(255,107,107,.25);
+    border-radius: 14px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .alert-icon { font-size: 20px; flex-shrink: 0; }
+  .alert-text { font-size: 13px; line-height: 1.5; }
+  .alert-text strong { color: var(--red); }
+
+  /* ── CONNECT PANEL ── */
+  .connect-card {
+    background: linear-gradient(135deg, rgba(108,92,231,.15), rgba(0,206,201,.08));
+    border: 1px solid rgba(108,92,231,.3);
+    border-radius: 16px; padding: 20px;
+  }
+  .connect-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .connect-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+  .field-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+  .field {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; font-size: 14px; color: var(--text);
+    outline: none; width: 100%; font-family: var(--mono);
+    transition: border-color .2s;
+  }
+  .field:focus { border-color: var(--accent); }
+  .field::placeholder { color: var(--muted); font-family: var(--sans); }
+
+  .btn-connect {
+    width: 100%; padding: 14px;
+    background: var(--accent); border: none; border-radius: 12px;
+    color: #fff; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: opacity .2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-connect:active { opacity: .8; }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+    background: rgba(19,19,26,.92);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    padding: 4px;
+  }
+  .nav-icon { font-size: 22px; }
+  .nav-label { font-size: 10px; font-weight: 500; color: var(--muted); }
+  .nav-item.active .nav-label { color: var(--accent); }
+  .nav-item.active .nav-icon { filter: drop-shadow(0 0 6px var(--accent)); }
+
+  /* ── LOADING ── */
+  .shimmer {
+    background: linear-gradient(90deg, var(--card) 25%, #22223a 50%, var(--card) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 8px; height: 16px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Stats
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="live-badge">● LIVE</span>
+    <span style="font-size:22px;cursor:pointer" onclick="toggleSettings()">⚙️</span>
+  </div>
+</div>
+
+<!-- PERIOD TABS -->
+<div class="period-wrap">
+  <button class="period-btn" onclick="setPeriod(this,'today')">Сегодня</button>
+  <button class="period-btn active" onclick="setPeriod(this,'yesterday')">Вчера</button>
+  <button class="period-btn" onclick="setPeriod(this,'7d')">7 дней</button>
+  <button class="period-btn" onclick="setPeriod(this,'30d')">30 дней</button>
+  <button class="period-btn" onclick="setPeriod(this,'month')">Месяц</button>
+</div>
+
+<!-- MAIN -->
+<div class="content">
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi-card c1">
+      <div class="kpi-label">Клики</div>
+      <div class="kpi-value" id="v-clicks">48 291</div>
+      <div class="kpi-delta up" id="d-clicks">↑ 12.4% vs пред.</div>
+    </div>
+    <div class="kpi-card c2">
+      <div class="kpi-label">CR %</div>
+      <div class="kpi-value" id="v-cr">4.73%</div>
+      <div class="kpi-delta up" id="d-cr">↑ 0.8 pp</div>
+    </div>
+    <div class="kpi-card c3">
+      <div class="kpi-label">EPC</div>
+      <div class="kpi-value" id="v-epc">$0.38</div>
+      <div class="kpi-delta down" id="d-epc">↓ 3.1%</div>
+    </div>
+    <div class="kpi-card c4">
+      <div class="kpi-label">Лиды</div>
+      <div class="kpi-value" id="v-leads">2 284</div>
+      <div class="kpi-delta up" id="d-leads">↑ 9.7%</div>
+    </div>
+  </div>
+
+  <!-- SPARKLINE -->
+  <div class="chart-card">
+    <div class="chart-title">Клики по часам</div>
+    <div class="spark-wrap">
+      <canvas class="spark" id="sparkCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- ALERT -->
+  <div class="alert-card">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-text">
+      <strong>NutraCleanse_RU</strong> — CR упал с 5.2% до 2.1% за последний час. Проверь лендинг.
+    </div>
+  </div>
+
+  <!-- CAMPAIGNS -->
+  <div class="section-head">
+    <div class="section-title">Кампании</div>
+    <div class="section-link">Все →</div>
+  </div>
+
+  <div class="camp-list" id="campList"></div>
+
+  <!-- CONNECT -->
+  <div id="connectPanel" style="display:none">
+    <div class="connect-card">
+      <div class="connect-title">🔗 Подключить Кейтаро</div>
+      <div class="connect-sub">Введи URL сервера и API ключ из настроек аккаунта. Данные хранятся только в браузере.</div>
+      <div class="field-group">
+        <input class="field" id="apiUrl" placeholder="https://track.mysite.com" type="url">
+        <input class="field" id="apiKey" placeholder="API ключ" type="password">
+      </div>
+      <button class="btn-connect" onclick="saveConfig()">Подключить →</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <div class="nav-item active">
+    <div class="nav-icon">📊</div>
+    <div class="nav-label">Дашборд</div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">📁</div>
+    <div class="nav-label">Кампании</div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">🔗</div>
+    <div class="nav-label">Офферы</div>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon">🔔</div>
+    <div class="nav-label">Алерты</div>
+  </div>
+</nav>
+
+<script>
+// ── DEMO DATA ──────────────────────────────────────
+const periods = {
+  today: {
+    clicks:'23 104', cr:'3.91%', epc:'$0.31', leads:'904',
+    dc:'↑ 5.1%', dcr:'↓ 0.4 pp', depc:'↓ 7.2%', dl:'↑ 3.8%',
+    dcls:['up','down','down','up'],
+    hours: [320,410,580,760,920,880,1040,1120,980,860,740,610,520,490,530,680,820,950,1080,1140,1060,900,720,540]
+  },
+  yesterday: {
+    clicks:'48 291', cr:'4.73%', epc:'$0.38', leads:'2 284',
+    dc:'↑ 12.4%', dcr:'↑ 0.8 pp', depc:'↓ 3.1%', dl:'↑ 9.7%',
+    dcls:['up','up','down','up'],
+    hours: [280,360,490,640,820,900,1020,1180,1260,1140,980,840,720,680,700,780,920,1080,1220,1310,1180,1040,880,650]
+  },
+  '7d': {
+    clicks:'312 844', cr:'4.51%', epc:'$0.36', leads:'14 109',
+    dc:'↑ 8.2%', dcr:'↑ 0.3 pp', depc:'↑ 1.4%', dl:'↑ 8.8%',
+    dcls:['up','up','up','up'],
+    hours: [8200,9400,11200,13800,16200,18100,19400,21000,22800,21500,19200,17100,14800,13200,12800,14100,16400,19200,22000,23800,22100,19800,17200,13800]
+  },
+  '30d': {
+    clicks:'1 284 220', cr:'4.28%', epc:'$0.34', leads:'54 965',
+    dc:'↑ 21.3%', dcr:'↓ 0.2 pp', depc:'↑ 4.1%', dl:'↑ 20.1%',
+    dcls:['up','down','up','up'],
+    hours: [32000,38000,44000,52000,62000,71000,78000,82000,79000,74000,68000,61000,55000,50000,48000,52000,61000,72000,81000,88000,84000,76000,66000,55000]
+  },
+  month: {
+    clicks:'892 440', cr:'4.39%', epc:'$0.35', leads:'39 178',
+    dc:'↑ 14.8%', dcr:'↑ 0.1 pp', depc:'↑ 2.3%', dl:'↑ 15.2%',
+    dcls:['up','up','up','up'],
+    hours: [22000,26000,30000,36000,43000,49000,54000,58000,55000,51000,47000,42000,38000,35000,33000,36000,42000,50000,56000,61000,58000,52000,45000,38000]
+  }
+};
+
+const campaigns = [
+  { name: 'WeightLoss_US_MOB', geo: '🇺🇸 US • Mobile', epc: '$0.61', cr: 'CR 6.2%', icon: '🔥', bg: 'rgba(255,107,107,.15)', active: true },
+  { name: 'Nutra_DE_WEB',      geo: '🇩🇪 DE • Desktop', epc: '$0.49', cr: 'CR 5.1%', icon: '💊', bg: 'rgba(108,92,231,.15)', active: true },
+  { name: 'Dating_BR_MOB',     geo: '🇧🇷 BR • Mobile',  epc: '$0.28', cr: 'CR 3.8%', icon: '💘', bg: 'rgba(0,206,201,.15)',  active: true },
+  { name: 'NutraCleanse_RU',   geo: '🇷🇺 RU • Mobile',  epc: '$0.12', cr: 'CR 2.1%', icon: '⚠️', bg: 'rgba(253,203,110,.15)', active: false },
+  { name: 'Crypto_UK_WEB',     geo: '🇬🇧 UK • Desktop', epc: '$1.04', cr: 'CR 8.9%', icon: '₿',  bg: 'rgba(0,184,148,.15)',  active: true },
+];
+
+let currentPeriod = 'yesterday';
+
+function setPeriod(el, p) {
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentPeriod = p;
+  updateKPIs(p);
+  drawSpark(periods[p].hours);
+}
+
+function updateKPIs(p) {
+  const d = periods[p];
+  document.getElementById('v-clicks').textContent = d.clicks;
+  document.getElementById('v-cr').textContent     = d.cr;
+  document.getElementById('v-epc').textContent    = d.epc;
+  document.getElementById('v-leads').textContent  = d.leads;
+  const deltas = ['d-clicks','d-cr','d-epc','d-leads'];
+  const vals   = [d.dc, d.dcr, d.depc, d.dl];
+  const dirs   = d.dcls;
+  deltas.forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.textContent = vals[i];
+    el.className = 'kpi-delta ' + dirs[i];
+  });
+}
+
+function renderCampaigns() {
+  const list = document.getElementById('campList');
+  list.innerHTML = campaigns.map(c => `
+    <div class="camp-card">
+      <div class="camp-icon" style="background:${c.bg}">${c.icon}</div>
+      <div class="camp-info">
+        <div class="camp-name">${c.name}</div>
+        <div class="camp-meta">${c.geo}</div>
+      </div>
+      <div class="camp-stats">
+        <div class="camp-epc">${c.epc}</div>
+        <div class="camp-cr">${c.cr}</div>
+      </div>
+      <div class="status-dot ${c.active ? 'active' : 'paused'}"></div>
+    </div>
+  `).join('');
+}
+
+// ── SPARKLINE ──────────────────────────────────────
+function drawSpark(data) {
+  const canvas = document.getElementById('sparkCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth;
+  const H = 80;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const pad = { t: 8, b: 20, l: 0, r: 0 };
+  const gW = W - pad.l - pad.r;
+  const gH = H - pad.t - pad.b;
+
+  const xs = data.map((_, i) => pad.l + (i / (data.length - 1)) * gW);
+  const ys = data.map(v  => pad.t + (1 - (v - min) / (max - min)) * gH);
+
+  // fill gradient
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H);
+  grad.addColorStop(0, 'rgba(108,92,231,.35)');
+  grad.addColorStop(1, 'rgba(108,92,231,0)');
+
+  ctx.beginPath();
+  ctx.moveTo(xs[0], ys[0]);
+  for (let i = 1; i < xs.length; i++) {
+    const cpx = (xs[i-1] + xs[i]) / 2;
+    ctx.bezierCurveTo(cpx, ys[i-1], cpx, ys[i], xs[i], ys[i]);
+  }
+  ctx.lineTo(xs[xs.length-1], H - pad.b);
+  ctx.lineTo(xs[0], H - pad.b);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // line
+  ctx.beginPath();
+  ctx.moveTo(xs[0], ys[0]);
+  for (let i = 1; i < xs.length; i++) {
+    const cpx = (xs[i-1] + xs[i]) / 2;
+    ctx.bezierCurveTo(cpx, ys[i-1], cpx, ys[i], xs[i], ys[i]);
+  }
+  ctx.strokeStyle = '#6c5ce7';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // hour labels
+  ctx.fillStyle = '#6b6b8a';
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  [0, 6, 12, 18, 23].forEach(i => {
+    ctx.fillText(i + ':00', xs[i], H - 4);
+  });
+}
+
+// ── SETTINGS TOGGLE ──────────────────────────────
+function toggleSettings() {
+  const p = document.getElementById('connectPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block') p.scrollIntoView({ behavior: 'smooth' });
+}
+
+function saveConfig() {
+  const url = document.getElementById('apiUrl').value.trim();
+  const key = document.getElementById('apiKey').value.trim();
+  if (!url || !key) { alert('Введи URL и API ключ'); return; }
+  localStorage.setItem('k_url', url);
+  localStorage.setItem('k_key', key);
+  document.getElementById('connectPanel').style.display = 'none';
+  // TODO: здесь вызов реального Кейтаро API
+  alert('✅ Сохранено! Подключение к Кейтаро готово.');
+}
+
+// ── INIT ──────────────────────────────────────────
+updateKPIs(currentPeriod);
+renderCampaigns();
+window.addEventListener('load', () => drawSpark(periods[currentPeriod].hours));
+window.addEventListener('resize', () => drawSpark(periods[currentPeriod].hours));
+
+// Nav tab switching (visual only)
+document.querySelectorAll('.nav-item').forEach((item, i) => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    if (i === 0) updateKPIs(currentPeriod);
+  });
+});
+</script>
+</body>
+</html>
